@@ -1,0 +1,10 @@
+spring:
+  ai:
+    dashscope:
+      api-key: <qwen3-max-key>
+      chat:
+        options:
+          model: qwen-max
+
+server:
+  port: 8080
