@@ -51,4 +51,14 @@ public class ChatRequest {
     public void setMessage(String message) {
         this.message = message;
     }
+
+    @Override
+    public String toString() {
+        return "ChatRequest{" +
+                "userId='" + userId + '\'' +
+                ", requestId='" + requestId + '\'' +
+                ", conversationId='" + conversationId + '\'' +
+                ", message='" + message + '\'' +
+                '}';
+    }
 }

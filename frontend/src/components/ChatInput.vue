@@ -6,10 +6,23 @@
         class="input"
         type="text"
         :placeholder="placeholder"
+        :disabled="props.sending"
         @keydown.enter="emitSend"
       />
-      <button class="send" @click="emitSend" aria-label="发送">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <!-- 隐藏的文件选择器（桌面与移动端通用） -->
+      <input
+        ref="fileInput"
+        type="file"
+        accept="image/*"
+        style="display:none"
+        @change="handleFileChange"
+      />
+      <button class="send" @click="handlePrimary" :aria-label="mode === 'identify' ? '上传图片' : '发送'" :disabled="mode !== 'identify' ? props.sending : false">
+        <svg v-if="mode === 'identify'" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 5v14"/>
+          <path d="M5 12h14"/>
+        </svg>
+        <svg v-else viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M22 2L11 13"/>
           <path d="M22 2L15 22L11 13L2 9L22 2Z"/>
         </svg>
@@ -21,14 +34,38 @@
 
 <script setup>
 import { ref } from 'vue'
-const props = defineProps({ placeholder: { type: String, default: '请输入您的需求…' }, hint: { type: String, default: '' } })
-const emit = defineEmits(['send'])
+const props = defineProps({ placeholder: { type: String, default: '请输入您的需求…' }, hint: { type: String, default: '' }, mode: { type: String, default: 'start' }, sending: { type: Boolean, default: false } })
+const emit = defineEmits(['send','upload'])
 const text = ref('')
+const fileInput = ref(null)
+
 const emitSend = () => {
+  if (props.sending) return
   const val = text.value.trim()
   if (!val) return
   emit('send', val)
   text.value = ''
+}
+
+const openFilePicker = () => {
+  if (fileInput.value) fileInput.value.click()
+}
+
+const handleFileChange = (e) => {
+  const files = Array.from(e.target.files || [])
+  if (files.length === 0) return
+  emit('upload', files)
+  // 清空以便重复选择同一文件
+  e.target.value = ''
+}
+
+const handlePrimary = () => {
+  if (props.mode === 'identify') {
+    openFilePicker()
+  } else {
+    if (props.sending) return
+    emitSend()
+  }
 }
 </script>
 
@@ -61,5 +98,12 @@ const emitSend = () => {
   transition: transform .16s ease, filter .2s ease;
 }
 .send:hover { transform: translateY(-1px); filter: brightness(1.03); }
+.send[disabled] {
+  background: #9ca3af; /* 灰色禁用态 */
+  border-color: rgba(0,0,0,0.12);
+  cursor: not-allowed;
+  filter: none;
+}
+.send[disabled]:hover { transform: none; filter: none; }
 .hint { margin: 8px 2px 0; color: #6b7280; font-size: 12px; }
 </style>

@@ -1,24 +1,64 @@
 package com.kimoyo.aiCarAdvisor.service.impl;
 
-import com.kimoyo.aiCarAdvisor.model.QwenModel;
-import org.springframework.stereotype.Service;
 import com.kimoyo.aiCarAdvisor.service.ChatService;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.SystemMessage;
+import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 public class ChatServiceImpl implements ChatService {
 
-    private final QwenModel qwenModel;
+    private final ChatModel chatModel;
+    private final String systemPrompt;
+    private final Map<String, Deque<Message>> memory = new ConcurrentHashMap<>();
+    private static final Logger log = LoggerFactory.getLogger(ChatServiceImpl.class);
 
-    public ChatServiceImpl(QwenModel qwenModel) {
-        this.qwenModel = qwenModel;
+    public ChatServiceImpl(ChatModel chatModel,
+                           @Value("classpath:/prompts/car-advisor-system.txt") String systemPrompt) {
+        this.chatModel = chatModel;
+        this.systemPrompt = systemPrompt;
     }
 
     @Override
-    public String chat(String userMessage) {
-        return qwenModel.client()
-                .prompt()
-                .user(userMessage)
-                .call()
-                .content();
+    public String chat(String conversationId, String userMessage) {
+        String key = (conversationId == null || conversationId.isBlank()) ? "default" : conversationId;
+        Deque<Message> history = memory.computeIfAbsent(key, k -> new ArrayDeque<>());
+
+        if (history.isEmpty()) {
+            history.add(new SystemMessage(systemPrompt));
+        }
+        history.add(new UserMessage(userMessage));
+
+        trimWindow(history, 40);
+
+        log.info("准备请求qwen chatModel");
+        long startTime = System.currentTimeMillis();
+        ChatResponse resp = chatModel.call(new Prompt(new ArrayList<>(history)));
+        long endTime = System.currentTimeMillis();
+        long duration = endTime - startTime;
+        String answer = resp.getResults().get(0).getOutput().getText();
+        log.info("qwen chatModel耗时: {}ms", duration);
+        log.info("qwen chatModel响应: {}", answer);
+        history.add(new AssistantMessage(answer));
+        return answer;
+    }
+
+    private void trimWindow(Deque<Message> q, int max) {
+        while (q.size() > max) q.pollFirst();
     }
 }

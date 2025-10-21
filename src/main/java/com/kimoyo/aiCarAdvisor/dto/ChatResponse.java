@@ -41,4 +41,13 @@ public class ChatResponse {
     public void setMessage(String message) {
         this.message = message;
     }
+
+    @Override
+    public String toString() {
+        return "ChatResponse{" +
+                "responseId='" + responseId + '\'' +
+                ", conversationId='" + conversationId + '\'' +
+                ", message='" + message + '\'' +
+                '}';
+    }
 }

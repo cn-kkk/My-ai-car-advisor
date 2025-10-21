@@ -10,11 +10,15 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 @RestController
 @RequestMapping("/ai")
 public class ChatController {
 
     private final ChatService chatService;
+    private static final Logger log = LoggerFactory.getLogger(ChatController.class);
 
     public ChatController(ChatService chatService) {
         this.chatService = chatService;
@@ -22,8 +26,15 @@ public class ChatController {
 
     @PostMapping("/chat")
     public ChatResponse chat(@RequestBody ChatRequest request) {
-        String answer = chatService.chat(request.getMessage());
+        log.info("/chat请求: {}", request.toString());
+        String convId = request.getConversationId();
+        if (convId == null || convId.isBlank()) {
+            convId = UUID.randomUUID().toString();
+        }
+        String answer = chatService.chat(convId, request.getMessage());
         String responseId = UUID.randomUUID().toString();
-        return new ChatResponse(responseId, request.getConversationId(), answer);
+        ChatResponse chatResponse = new ChatResponse(responseId, convId, answer);
+        log.info("/chat响应: {}", chatResponse.toString());
+        return chatResponse;
     }
 }
