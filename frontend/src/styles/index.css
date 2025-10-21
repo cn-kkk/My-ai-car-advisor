@@ -2,10 +2,9 @@
 :root {
   --bg-start: #f7f8fb;
   --bg-end: #ffffff;
-  --card-bg: #ffffff;
   --text: #1b1f23;
   --muted-text: #6b7280;
-  --primary: #0a84ff; /* Apple 蓝 */
+  --primary: #0a84ff;
   --primary-600: #0a6cf0;
   --primary-700: #0959c9;
   --border: rgba(0, 0, 0, 0.08);
@@ -23,21 +22,29 @@ body {
               linear-gradient(180deg, var(--bg-start) 0%, var(--bg-end) 100%);
 }
 #app { min-height: 100vh; }
+/* 安全视口单位，修正移动端地址栏收缩导致的高度问题 */
+@supports (height: 100svh) {
+  #app { min-height: 100svh; }
+}
 
-/* 常用容器 */
+/* 恢复通用容器：居中并保留左右 20px 边距 */
 .container {
+  width: 100%;
   max-width: 980px;
   margin: 0 auto;
   padding: 0 20px;
 }
-
-.card {
-  background: var(--card-bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-soft);
+/* 小屏进一步收紧左右内边距，避免内容超出视口宽度，并支持刘海/曲面安全区 */
+@media (max-width: 520px) {
+  .container {
+    padding-left: 16px;
+    padding-right: 16px;
+    /* iOS 等支持安全区的浏览器：保留至少 16px 边距 */
+    padding-left: max(16px, env(safe-area-inset-left));
+    padding-right: max(16px, env(safe-area-inset-right));
+  }
 }
 
-/* 细节交互统一 */
+/* 通用焦点态 */
 .button-reset { border: 0; background: none; padding: 0; font: inherit; }
 .focus-ring:focus-visible { outline: 3px solid rgba(10, 132, 255, 0.25); outline-offset: 2px; border-radius: inherit; }
