@@ -9,7 +9,6 @@
         :disabled="props.sending"
         @keydown.enter="emitSend"
       />
-      <!-- 隐藏的文件选择器（桌面与移动端通用） -->
       <input
         ref="fileInput"
         type="file"
@@ -55,7 +54,6 @@ const handleFileChange = (e) => {
   const files = Array.from(e.target.files || [])
   if (files.length === 0) return
   emit('upload', files)
-  // 清空以便重复选择同一文件
   e.target.value = ''
 }
 
@@ -74,11 +72,11 @@ const handlePrimary = () => {
 .input-row {
   display: grid;
   grid-template-columns: 1fr auto;
-  gap: 8px; /* 缩小与按钮的间距 */
+  gap: 8px;
 }
 .input {
   width: 100%;
-  padding: 14px 14px; /* 略增高 */
+  padding: 14px 14px;
   border-radius: 12px;
   border: 1px solid rgba(0,0,0,0.12);
   background: #fff;
@@ -89,7 +87,7 @@ const handlePrimary = () => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 44px; height: 44px; /* 与输入框更匹配 */
+  width: 44px; height: 44px;
   border-radius: 12px;
   border: 1px solid rgba(0,0,0,0.12);
   background: linear-gradient(180deg, var(--primary) 0%, var(--primary-600) 100%);
@@ -99,7 +97,7 @@ const handlePrimary = () => {
 }
 .send:hover { transform: translateY(-1px); filter: brightness(1.03); }
 .send[disabled] {
-  background: #9ca3af; /* 灰色禁用态 */
+  background: #9ca3af;
   border-color: rgba(0,0,0,0.12);
   cursor: not-allowed;
   filter: none;

@@ -37,25 +37,24 @@
   padding: 0;
   list-style: none;
   display: grid;
-  grid-template-columns: 1fr; /* 单列，每行一个文本框 */
+  grid-template-columns: 1fr;
   gap: 10px;
-  justify-items: center; /* 默认全部居中 */
+  justify-items: center;
 }
 .intro-list li {
   color: #4b5563;
   font-size: clamp(13px, 2.3vw, 14px);
   background: rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(10, 132, 255, 0.18); /* 淡蓝边框 */
-  box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.10); /* 很淡的蓝色发光 */
+  border: 1px solid rgba(10, 132, 255, 0.18);
+  box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.10);
   border-radius: 12px;
   padding: 8px 12px;
-  width: fit-content; /* 宽度随内容 */
+  width: fit-content;
   max-width: 100%;
-  cursor: default; /* 悬停不显示文本光标 */
-  user-select: none; /* 禁止选中文本，避免出现文本插入光标 */
-  text-align: center; /* 文本居中 */
+  cursor: default;
+  user-select: none;
+  text-align: center;
 }
-/* 改用 transform 进行左右偏移，避免 margin 导致溢出 */
 .intro-list li:nth-child(1) { transform: translateX(-20%); }
 .intro-list li:nth-child(2) { transform: translateX(0); }
 .intro-list li:nth-child(3) { }
@@ -69,7 +68,6 @@
 @media (max-width: 640px) {
   .intro-list { grid-template-columns: 1fr; }
 }
-/* 小屏去除左右偏移，避免宽度超出视口 */
 @media (max-width: 520px) {
   .intro-list li { transform: none !important; }
 }

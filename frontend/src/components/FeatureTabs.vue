@@ -38,17 +38,18 @@ const tabs = [
 <style scoped>
 .tabs { padding: 8px 0 8px; }
 .segmented {
-  display: flex; /* 改为靠左的横向排列 */
+  display: flex;
   gap: 6px;
-  justify-content: flex-start; /* 靠左对齐 */
+  justify-content: flex-start;
   align-items: center;
-  flex-wrap: wrap; /* 小屏可自动换行 */
+  flex-wrap: wrap;
+  padding-left: 20px;
 }
 .seg-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 12px; /* 紧凑宽度，仅比文字宽一点 */
+  padding: 8px 12px;
   border-radius: 12px;
   border: 1px solid rgba(0,0,0,0.10);
   background: #fff;

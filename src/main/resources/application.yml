@@ -4,7 +4,7 @@ spring:
       api-key: <qwen3-max-key>
       chat:
         options:
-          model: qwen-max
+          model: qwen3-max
 
 server:
   port: 8080
