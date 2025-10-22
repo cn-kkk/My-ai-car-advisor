@@ -8,16 +8,17 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, nextTick, computed } from 'vue'
 import TopBarTitle from '../components/TopBarTitle.vue'
 import IntroPanel from '../components/IntroPanel.vue'
 import ChatCanvas from '../components/ChatCanvas.vue'
 import BottomControls from '../components/BottomControls.vue'
 
 const mode = ref('start')
-const messages = ref([])
+const messagesByMode = ref({ start: [], compare: [], identify: [] })
+const messages = computed(() => messagesByMode.value[mode.value])
 const sending = ref(false)
-const conversationId = ref(null)
+const conversationIds = ref({ start: null, compare: null, identify: null })
 const userIdKey = 'userId'
 const userId = ref(localStorage.getItem(userIdKey) || `user-${Math.random().toString(36).slice(2,10)}`)
 
@@ -29,32 +30,40 @@ onMounted(() => {
 
 const uuid = () => (crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`)
 
-const handleSend = async ({ text, mode }) => {
+const isDocHidden = () => {
+  const vs = document.visibilityState
+  return document.hidden || (vs && vs !== 'visible')
+}
+
+const handleSend = async ({ text, mode: active }) => {
+  const list = messagesByMode.value[active]
   const userMsgId = Date.now()
-  messages.value.push({ id: userMsgId, role: 'user', text })
+  list.push({ id: userMsgId, role: 'user', text })
   if (sending.value) return
   sending.value = true
 
   const placeholderId = userMsgId + 1
-  messages.value.push({ id: placeholderId, role: 'assistant', text: '。' })
+  list.push({ id: placeholderId, role: 'assistant', text: '。' })
   const appendDot = () => {
-    const idx = messages.value.findIndex(m => m.id === placeholderId)
-    if (idx !== -1) messages.value[idx].text += '。'
+    const idx = list.findIndex(m => m.id === placeholderId)
+    if (idx !== -1) list[idx].text += '。'
   }
   const dotsTimer = setInterval(appendDot, 3000)
 
   const body = {
     userId: userId.value,
     requestId: uuid(),
-    conversationId: conversationId.value,
+    conversationId: conversationIds.value[active],
     message: text
   }
 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 45000)
 
+  const endpoint = active === 'compare' ? '/ai/compare' : '/ai/chat'
+
   try {
-    const resp = await fetch('/ai/chat', {
+    const resp = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -62,25 +71,43 @@ const handleSend = async ({ text, mode }) => {
     })
     clearTimeout(timeout)
     const data = await resp.json()
-    if (data?.conversationId && !conversationId.value) {
-      conversationId.value = data.conversationId
+    if (data?.conversationId && !conversationIds.value[active]) {
+      conversationIds.value[active] = data.conversationId
     }
-    const idx = messages.value.findIndex(m => m.id === placeholderId)
+    const idx = list.findIndex(m => m.id === placeholderId)
     if (idx !== -1) {
       const responseText = data?.message || '（无响应内容）'
-      let displayedText = ''
-      for (const char of responseText) {
-        displayedText += char
-        messages.value[idx].text = displayedText
-        await new Promise(resolve => setTimeout(resolve, 30))
+
+      // 页面不可见或用户减少动效时直接一次性渲染；可见时启用逐字动画
+      const prefersReduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+      const shouldType = !prefersReduced && !isDocHidden()
+
+      if (!shouldType) {
+        list[idx].text = responseText
+        await nextTick()
+        document.querySelector('.msg-list')?.lastElementChild?.scrollIntoView({ behavior: 'auto' })
+      } else {
+        let displayedText = ''
+        for (const char of responseText) {
+          // 动画过程中若页面变为不可见，立即填充剩余文本
+          if (isDocHidden()) {
+            list[idx].text = responseText
+            break
+          }
+          displayedText += char
+          list[idx].text = displayedText
+          await new Promise(resolve => setTimeout(resolve, 10))
+        }
+        await nextTick()
+        document.querySelector('.msg-list')?.lastElementChild?.scrollIntoView({ behavior: 'auto' })
       }
     }
   } catch (e) {
-    const idx = messages.value.findIndex(m => m.id === placeholderId)
+    const idx = list.findIndex(m => m.id === placeholderId)
     if (e?.name === 'AbortError') {
-      if (idx !== -1) messages.value[idx].text = '请求超时，请稍后重试。'
+      if (idx !== -1) list[idx].text = '请求超时，请稍后重试。'
     } else {
-      if (idx !== -1) messages.value[idx].text = '请求失败，请稍后再试。'
+      if (idx !== -1) list[idx].text = '请求失败，请稍后再试。'
     }
   } finally {
     clearInterval(dotsTimer)
@@ -90,7 +117,7 @@ const handleSend = async ({ text, mode }) => {
 
 const handleUpload = ({ files, mode: active }) => {
   const names = files.map(f => f.name).join(', ')
-  messages.value.push({ id: Date.now(), role: 'user', text: `已选择图片：${names}` })
+  messagesByMode.value[active].push({ id: Date.now(), role: 'user', text: `已选择图片：${names}` })
 }
 </script>
 

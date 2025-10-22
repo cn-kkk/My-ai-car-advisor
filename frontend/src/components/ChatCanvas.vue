@@ -7,8 +7,8 @@
           <p class="hint-eg">例如：预算20w，想要买一辆suv通勤用，不接受新能源。</p>
         </template>
         <template v-else-if="mode === 'compare'">
-          <p class="hint-title">请告诉我你想对比的车型，不要超过3款哟。</p>
-          <p class="hint-eg">例如：帮我比较下24年model 3和24年小米su7标准版的不同之处。</p>
+          <p class="hint-title">请告诉我你想对比的两款车型。</p>
+          <p class="hint-eg">例如：帮我比较下model3和小米su7标准版的不同之处。</p>
         </template>
         <template v-else-if="mode === 'identify'">
           <p class="hint-title">请先点击下面的+号上传车辆图片</p>
