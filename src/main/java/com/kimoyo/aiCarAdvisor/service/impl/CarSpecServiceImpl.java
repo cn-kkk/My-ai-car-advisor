@@ -151,92 +151,102 @@ public class CarSpecServiceImpl implements CarSpecService {
     public Optional<CarSpec> findByMessage(String userText) {
         if (isBlank(userText)) return Optional.empty();
         String text = normalize(userText);
-        // 近似命中集（编辑距离<=1），用于容错一个字差错
-        Set<String> approxBrands = approxContainsAny(text, brandDict, 1);
-        Set<String> approxSeries = approxContainsAny(text, seriesDict, 1);
-        Set<String> approxModels = approxContainsAny(text, modelDict, 1);
-
-        // 先尝试精确组合匹配（brand+series+model）
-        List<Hit> hits = new ArrayList<>();
-        for (CarSpec spec : byKey.values()) {
-            String nBrand = normalize(spec.getBrand());
-            String nSeries = normalize(spec.getSeries());
-            String nModel = normalize(spec.getModel());
-
-            boolean hasModel = text.contains(nModel) || approxModels.contains(nModel);
-            boolean hasBrand = text.contains(nBrand) || approxBrands.contains(nBrand);
-            boolean hasSeries = text.contains(nSeries) || approxSeries.contains(nSeries);
-
-            if (hasModel && (hasBrand || hasSeries)) {
-                hits.add(new Hit(spec, nModel.length() + (hasBrand ? nBrand.length() : 0) + (hasSeries ? nSeries.length() : 0)));
-            } else if (hasModel) {
-                // 只有车型也可命中，但可能多义，后面用最长模型名消歧
-                hits.add(new Hit(spec, nModel.length()));
-            }
-        }
-        // 精确匹配命中
-        if (!hits.isEmpty()) {
-            hits.sort((a, b) -> Integer.compare(b.score, a.score));
-            return Optional.of(hits.get(0).spec);
-        }
-
-        // 品牌+车系兜底：当文本同时包含品牌与车系，但未包含具体型号时，
-        // 若该品牌+车系仅有一个型号，直接返回；若存在多个型号，自动选择“参数最丰富”的型号作为默认。
-        List<CarSpec> candidates = new ArrayList<>();
-        for (CarSpec spec : byKey.values()) {
-            String nBrand = normalize(spec.getBrand());
-            String nSeries = normalize(spec.getSeries());
-            boolean hasBrand = text.contains(nBrand) || approxBrands.contains(nBrand);
-            boolean hasSeries = text.contains(nSeries) || approxSeries.contains(nSeries);
-            if (hasBrand && hasSeries) {
-                candidates.add(spec);
-            }
-        }
-        if (candidates.size() == 1) {
-            return Optional.of(candidates.get(0));
-        } else if (candidates.size() > 1) {
-            CarSpec best = null;
-            int bestCount = -1;
-            for (CarSpec s : candidates) {
-                int c = (s.getAttributes() == null) ? 0 : s.getAttributes().size();
-                if (c > bestCount) {
-                    best = s;
-                    bestCount = c;
-                }
-            }
-            if (best != null) return Optional.of(best);
-        }
-
-        // 仅车系兜底：文本包含车系，但没有明确车型和品牌时也尝试匹配
-        List<CarSpec> seriesOnly = new ArrayList<>();
-        for (CarSpec spec : byKey.values()) {
-            String nSeries = normalize(spec.getSeries());
-            String nModel = normalize(spec.getModel());
-            String nBrand = normalize(spec.getBrand());
-            boolean hasSeries = text.contains(nSeries) || approxSeries.contains(nSeries);
-            boolean hasModel = text.contains(nModel) || approxModels.contains(nModel);
-            // 如果已包含车型，前面的精确逻辑应当命中；这里只处理“不含车型”的系列查询
-            if (hasSeries && !hasModel) {
-                seriesOnly.add(spec);
-            }
-        }
-        if (seriesOnly.size() == 1) {
-            return Optional.of(seriesOnly.get(0));
-        } else if (seriesOnly.size() > 1) {
-            CarSpec best = null;
-            int bestCount = -1;
-            for (CarSpec s : seriesOnly) {
-                int c = (s.getAttributes() == null) ? 0 : s.getAttributes().size();
-                if (c > bestCount) {
-                    best = s;
-                    bestCount = c;
-                }
-            }
-            if (best != null) return Optional.of(best);
-        }
-
-        return Optional.empty();
-    }
+        List<String> tokens = alphaNumTokens(text);
+         // 近似命中集（编辑距离<=1），用于容错一个字差错
+         // 品牌与车系采用“严格匹配”（不使用近似），避免单字系列（如“汉”）被任意中文误命中
+         Set<String> approxBrands = approxContainsAny(text, brandDict, 0);
+         Set<String> approxSeries = approxContainsAny(text, seriesDict, 0);
+         // 车型名保留近似匹配，提高容错能力
+         Set<String> approxModels = approxContainsAny(text, modelDict, 1);
+ 
+         // 先尝试精确组合匹配（brand+series+model）
+         List<Hit> hits = new ArrayList<>();
+         for (CarSpec spec : byKey.values()) {
+             String nBrand = normalize(spec.getBrand());
+             String nSeries = normalize(spec.getSeries());
+             String nModel = normalize(spec.getModel());
+ 
+             boolean hasModel = text.contains(nModel) || approxModels.contains(nModel);
+             boolean hasBrand = text.contains(nBrand) || approxBrands.contains(nBrand);
+             // 系列增加“英数字长词子串”匹配支持，如用户仅输入"model3"时可命中"特斯拉model3"
+             boolean hasSeries = text.contains(nSeries) || approxSeries.contains(nSeries) || seriesContainsAnyToken(nSeries, tokens);
+ 
+             if (hasModel && (hasBrand || hasSeries)) {
+                 hits.add(new Hit(spec, nModel.length() + (hasBrand ? nBrand.length() : 0) + (hasSeries ? nSeries.length() : 0)));
+             } else if (hasModel) {
+                 // 只有车型也可命中，但可能多义，后面用最长模型名消歧
+                 hits.add(new Hit(spec, nModel.length()));
+             }
+         }
+         // 精确匹配命中
+         if (!hits.isEmpty()) {
+             hits.sort((a, b) -> Integer.compare(b.score, a.score));
+             return Optional.of(hits.get(0).spec);
+         }
+ 
+         // 品牌+车系兜底：当文本同时包含品牌与车系，但未包含具体型号时，
+         // 若该品牌+车系仅有一个型号，直接返回；若存在多个型号，自动选择“参数最丰富”的型号作为默认。
+         List<CarSpec> candidates = new ArrayList<>();
+         for (CarSpec spec : byKey.values()) {
+             String nBrand = normalize(spec.getBrand());
+             String nSeries = normalize(spec.getSeries());
+             boolean hasBrand = text.contains(nBrand) || approxBrands.contains(nBrand);
+             boolean hasSeries = text.contains(nSeries) || approxSeries.contains(nSeries) || seriesContainsAnyToken(nSeries, tokens);
+             if (hasBrand && hasSeries) {
+                 candidates.add(spec);
+             }
+         }
+         if (candidates.size() == 1) {
+             return Optional.of(candidates.get(0));
+         } else if (candidates.size() > 1) {
+             CarSpec best = null;
+             int bestScore = Integer.MIN_VALUE;
+             int bestCount = -1;
+             for (CarSpec s : candidates) {
+                 int score = modelPreferenceScore(text, tokens, s);
+                 int c = (s.getAttributes() == null) ? 0 : s.getAttributes().size();
+                 if (score > bestScore || (score == bestScore && c > bestCount)) {
+                     best = s;
+                     bestScore = score;
+                     bestCount = c;
+                 }
+             }
+             if (best != null) return Optional.of(best);
+         }
+ 
+         // 仅车系兜底：文本包含车系，但没有明确车型和品牌时也尝试匹配
+         List<CarSpec> seriesOnly = new ArrayList<>();
+         for (CarSpec spec : byKey.values()) {
+             String nSeries = normalize(spec.getSeries());
+             String nModel = normalize(spec.getModel());
+             String nBrand = normalize(spec.getBrand());
+             boolean hasSeries = text.contains(nSeries) || approxSeries.contains(nSeries) || seriesContainsAnyToken(nSeries, tokens);
+             boolean hasModel = text.contains(nModel) || approxModels.contains(nModel);
+             // 如果已包含车型，前面的精确逻辑应当命中；这里只处理“不含车型”的系列查询
+             if (hasSeries && !hasModel) {
+                 seriesOnly.add(spec);
+             }
+         }
+         if (seriesOnly.size() == 1) {
+             return Optional.of(seriesOnly.get(0));
+         } else if (seriesOnly.size() > 1) {
+             CarSpec best = null;
+             int bestScore = Integer.MIN_VALUE;
+             int bestCount = -1;
+             for (CarSpec s : seriesOnly) {
+                 int score = modelPreferenceScore(text, tokens, s);
+                 int c = (s.getAttributes() == null) ? 0 : s.getAttributes().size();
+                 if (score > bestScore || (score == bestScore && c > bestCount)) {
+                     best = s;
+                     bestScore = score;
+                     bestCount = c;
+                 }
+             }
+             if (best != null) return Optional.of(best);
+         }
+ 
+         return Optional.empty();
+     }
 
     @Override
     public String format(CarSpec spec) {
@@ -344,6 +354,34 @@ public class CarSpecServiceImpl implements CarSpecService {
         // 处理不间断空格
         t = t.replace("\u00A0", "");
         return t;
+    }
+
+    // 从规范化文本中提取英数字长词（长度>=3），如 model3、et7、ix3
+    private static List<String> alphaNumTokens(String text) {
+        List<String> res = new ArrayList<>();
+        if (text == null || text.isEmpty()) return res;
+        int n = text.length();
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < n; i++) {
+            char c = text.charAt(i);
+            if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')) {
+                sb.append(c);
+            } else {
+                if (sb.length() >= 3) res.add(sb.toString());
+                sb.setLength(0);
+            }
+        }
+        if (sb.length() >= 3) res.add(sb.toString());
+        return res;
+    }
+
+    // 判断系列名是否包含任一英数字长词（长度>=3），支持用户仅输入系列的英文数字部分
+    private static boolean seriesContainsAnyToken(String seriesNorm, List<String> tokens) {
+        if (seriesNorm == null || seriesNorm.isEmpty() || tokens == null || tokens.isEmpty()) return false;
+        for (String tk : tokens) {
+            if (seriesNorm.contains(tk)) return true;
+        }
+        return false;
     }
 
     // 近似包含：允许一个字符的替换/插入/删除（编辑距离<=maxDist），用于容错常见单字差错
@@ -487,5 +525,47 @@ public class CarSpecServiceImpl implements CarSpecService {
             added++;
         }
         return added;
+    }
+
+    // 选择同一品牌+车系下的“最符合用户意图”的车型：
+    // - 若用户文本包含具体型号，优先该型号
+    // - 若文本不包含型号：
+    //   * 对含有后缀（gt/pro/max/ultra/plus/…，以及中文后缀如标准版/长续航版/高性能版/运动版等）且文本中未出现的型号施加惩罚
+    //   * 无后缀的基础型号给额外加分（倾向命中“极氪007”而不是“极氪007GT”）
+    //   * 若分数相同，以“参数数量”作为加权优先
+    private static int modelPreferenceScore(String textNorm, List<String> tokens, CarSpec spec) {
+        String m = normalize(spec.getModel());
+        String s = normalize(spec.getSeries());
+        int score = 0;
+        if (textNorm.contains(m)) score += 100; // 显式包含型号
+        if (textNorm.contains(s)) score += 10;  // 文本包含系列，略微加分
+        // 后缀词集合（归一化形式）
+        String[] suffixEn = new String[]{"gt","pro","max","ultra","plus","sport","performance","longrange","standard","base"};
+        String[] suffixZhRaw = new String[]{"标准版","旗舰版","高性能版","长续航版","豪华版","运动版","智享版","尊享版","入门版","高配","低配"};
+        String[] suffixZh = new String[suffixZhRaw.length];
+        for (int i = 0; i < suffixZhRaw.length; i++) suffixZh[i] = normalize(suffixZhRaw[i]);
+        int suffixCount = 0;
+        for (String w : suffixEn) {
+            if (m.contains(w)) {
+                suffixCount++;
+                if (textNorm.contains(w)) score += 20; else score -= 25;
+            }
+        }
+        for (String w : suffixZh) {
+            if (m.contains(w)) {
+                suffixCount++;
+                if (textNorm.contains(w)) score += 20; else score -= 25;
+            }
+        }
+        if (suffixCount == 0) score += 30; // 基础型号偏好
+        // 用户英数字token与型号的重合加分
+        if (tokens != null) {
+            for (String tk : tokens) {
+                if (m.contains(tk)) score += 15;
+            }
+        }
+        // 对过长型号做轻微惩罚，倾向简洁命名
+        score -= Math.max(0, m.length() - 12);
+        return score;
     }
 }

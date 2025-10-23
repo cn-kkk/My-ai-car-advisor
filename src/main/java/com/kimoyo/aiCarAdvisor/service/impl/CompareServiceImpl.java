@@ -88,16 +88,22 @@ public class CompareServiceImpl implements CompareService {
     }
 
     private static List<String> splitIntoTwo(String text) {
-        String t = text.trim();
+        String t = text == null ? "" : text.trim();
         // 优先按常见分隔词分割，命中后取前两个非空片段
+        // 注意：允许分隔词两侧无空格（例如“model3和小米su7标准版”）
         String[] seps = new String[]{
-                " 对比 ", " 比较 ", " vs ", " VS ", " 和 ", " 与 ",
-                "/", "|", ",", "，", "、", " 比一比 ", " PK "
+                // 仅保留更可能出现在两款车型之间的分隔词，避免把动词“比较/对比”当分隔导致左片段如“帮我”
+                "和", "与", "vs", "VS",
+                "/", "|", ",", "，", "比一比", "pk", "PK"
         };
-        for (String sep : seps) {
-            if (t.contains(sep.trim())) {
-                String[] arr = t.split(java.util.regex.Pattern.quote(sep));
-                List<String> res = new ArrayList<>();
+        for (String token : seps) {
+            String sepTrim = token.trim();
+            if (sepTrim.isEmpty()) continue;
+            // 构造允许分隔词两侧可选空格的正则：\s*<sepTrim>\s*
+            String regex = "\\s*" + java.util.regex.Pattern.quote(sepTrim) + "\\s*";
+            if (t.toLowerCase().contains(sepTrim.toLowerCase())) {
+                String[] arr = t.split(regex);
+                java.util.List<String> res = new java.util.ArrayList<>();
                 for (String a : arr) {
                     if (a != null && !a.trim().isBlank()) res.add(a.trim());
                 }
@@ -110,11 +116,11 @@ public class CompareServiceImpl implements CompareService {
         if (ws.length >= 6) {
             // 简单地平均切半作为两个片段（启发式兜底）
             int mid = ws.length / 2;
-            String left = String.join(" ", Arrays.copyOfRange(ws, 0, mid));
-            String right = String.join(" ", Arrays.copyOfRange(ws, mid, ws.length));
-            return Arrays.asList(left.trim(), right.trim());
+            String left = String.join(" ", java.util.Arrays.copyOfRange(ws, 0, mid));
+            String right = String.join(" ", java.util.Arrays.copyOfRange(ws, mid, ws.length));
+            return java.util.Arrays.asList(left.trim(), right.trim());
         }
-        return Collections.emptyList();
+        return java.util.Collections.emptyList();
     }
 
     private static boolean isSupported(String v) {
