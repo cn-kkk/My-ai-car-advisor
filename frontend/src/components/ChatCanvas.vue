@@ -85,6 +85,8 @@ defineProps({
   color: #0f172a;
   box-shadow: var(--shadow-soft);
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .bubble.user {
   background: linear-gradient(180deg, var(--primary) 0%, var(--primary-600) 100%);
