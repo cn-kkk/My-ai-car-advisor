@@ -8,3 +8,10 @@ spring:
 
 server:
   port: 8080
+
+# 百度车型识别
+baidu:
+  car:
+    api-url: https://aip.baidubce.com/rest/2.0/image-classify/v1/car
+    access-token: 24.9bcbf1f69f802bbcb3ad413fbaed4faa.2592000.1763884252.282335-120498679
+    timeout-ms: 60000

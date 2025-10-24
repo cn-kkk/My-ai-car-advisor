@@ -13,7 +13,6 @@ import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -123,7 +122,10 @@ public class CarSpecServiceImpl implements CarSpecService {
                         byKey.put(key, spec);
                         brandDict.add(normalize(brand));
                         seriesDict.add(normalize(series));
-                        modelDict.add(normalize(model));
+                        String normModel = normalize(model);
+                        if (!isDigitsOnly(normModel)) {
+                            modelDict.add(normModel);
+                        }
                         addedCount++;
                     }
                     parsed = true;
@@ -170,11 +172,12 @@ public class CarSpecServiceImpl implements CarSpecService {
              boolean hasBrand = text.contains(nBrand) || approxBrands.contains(nBrand);
              // 系列增加“英数字长词子串”匹配支持，如用户仅输入"model3"时可命中"特斯拉model3"
              boolean hasSeries = text.contains(nSeries) || approxSeries.contains(nSeries) || seriesContainsAnyToken(nSeries, tokens);
+             boolean numericModel = isDigitsOnly(nModel);
  
              if (hasModel && (hasBrand || hasSeries)) {
                  hits.add(new Hit(spec, nModel.length() + (hasBrand ? nBrand.length() : 0) + (hasSeries ? nSeries.length() : 0)));
-             } else if (hasModel) {
-                 // 只有车型也可命中，但可能多义，后面用最长模型名消歧
+             } else if (hasModel && !numericModel) {
+                 // 只有车型也可命中，但可能多义，数字纯型号不单独命中
                  hits.add(new Hit(spec, nModel.length()));
              }
          }
@@ -271,8 +274,7 @@ public class CarSpecServiceImpl implements CarSpecService {
         String t = userText.trim().toLowerCase();
         String[] mustAny = new String[]{
                 "参数", "配置", "详细参数", "数据", "规格", "性能",
-                "油耗", "百公里", "马力", "功率", "扭矩", "尺寸", "轴距", "电池", "续航",
-                "查看", "查一下", "给我", "是多少", "多少"
+                "油耗", "百公里", "马力", "功率", "扭矩", "尺寸", "轴距", "电池", "续航"
         };
         for (String k : mustAny) {
             if (t.contains(k)) return true;
@@ -354,6 +356,15 @@ public class CarSpecServiceImpl implements CarSpecService {
         // 处理不间断空格
         t = t.replace("\u00A0", "");
         return t;
+    }
+
+    private static boolean isDigitsOnly(String s) {
+        if (s == null || s.isEmpty()) return false;
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c < '0' || c > '9') return false;
+        }
+        return true;
     }
 
     // 从规范化文本中提取英数字长词（长度>=3），如 model3、et7、ix3

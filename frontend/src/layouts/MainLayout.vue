@@ -58,7 +58,7 @@ const handleSend = async ({ text, mode: active }) => {
   }
 
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 45000)
+  const timeout = setTimeout(() => controller.abort(), 60000)
 
   const endpoint = active === 'compare' ? '/ai/compare' : '/ai/chat'
 
@@ -115,9 +115,94 @@ const handleSend = async ({ text, mode: active }) => {
   }
 }
 
-const handleUpload = ({ files, mode: active }) => {
-  const names = files.map(f => f.name).join(', ')
-  messagesByMode.value[active].push({ id: Date.now(), role: 'user', text: `已选择图片：${names}` })
+const handleUpload = async ({ files, mode: active }) => {
+  // 生成本地预览 URL，并以图片消息的形式推入消息列表
+  const urls = files.map(f => URL.createObjectURL(f))
+  messagesByMode.value[active].push({ id: Date.now(), role: 'user', images: urls, names: files.map(f => f.name) })
+
+  // 仅在车型识别模式下，调用后端识别接口
+  if (active !== 'identify' || files.length === 0) return
+
+  const file = files[0]
+  // 前端校验：4MB大小限制
+  const MAX_BYTES = 4 * 1024 * 1024
+  if (file.size > MAX_BYTES) {
+    messagesByMode.value[active].push({ id: Date.now() + 1, role: 'assistant', text: '图片超过4MB限制，无法识别，请选择更小的图片。' })
+    return
+  }
+
+  // 占位消息：识别中
+  const list = messagesByMode.value[active]
+  const placeholderId = Date.now() + 2
+  list.push({ id: placeholderId, role: 'assistant', text: '识别中，请稍候…' })
+
+  // 读取为Base64（去掉dataURL前缀）
+  const toBase64 = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const dataUrl = reader.result
+      const s = String(dataUrl || '')
+      const comma = s.indexOf(',')
+      resolve(comma !== -1 ? s.slice(comma + 1) : s)
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+
+  try {
+    const base64 = await toBase64(file)
+    const body = {
+      userId: userId.value,
+      requestId: uuid(),
+      conversationId: conversationIds.value[active],
+      imageBase64: base64
+    }
+
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 60000)
+
+    const resp = await fetch('/ai/identify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: controller.signal
+    })
+    clearTimeout(timeout)
+    const data = await resp.json()
+    if (data?.conversationId && !conversationIds.value[active]) {
+      conversationIds.value[active] = data.conversationId
+    }
+    const idx = list.findIndex(m => m.id === placeholderId)
+    if (idx !== -1) {
+      const responseText = data?.message || '（未返回识别结果）'
+      const prefersReduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+      const shouldType = !prefersReduced && !isDocHidden()
+      if (!shouldType) {
+        list[idx].text = responseText
+        await nextTick()
+        document.querySelector('.msg-list')?.lastElementChild?.scrollIntoView({ behavior: 'auto' })
+      } else {
+        let displayedText = ''
+        for (const char of responseText) {
+          if (isDocHidden()) {
+            list[idx].text = responseText
+            break
+          }
+          displayedText += char
+          list[idx].text = displayedText
+          await new Promise(resolve => setTimeout(resolve, 10))
+        }
+        await nextTick()
+        document.querySelector('.msg-list')?.lastElementChild?.scrollIntoView({ behavior: 'auto' })
+      }
+    }
+  } catch (e) {
+    const idx = list.findIndex(m => m.id === placeholderId)
+    if (idx !== -1) {
+      if (e?.name === 'AbortError') list[idx].text = '识别超时，请稍后重试。'
+      else list[idx].text = '识别失败，请稍后再试。'
+    }
+  }
 }
 </script>
 

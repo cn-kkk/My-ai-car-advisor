@@ -16,7 +16,16 @@
       </div>
       <div v-else class="msg-list">
         <div v-for="m in messages" :key="m.id" class="msg" :class="m.role">
-          <div class="bubble" :class="m.role">{{ m.text }}</div>
+          <template v-if="m.text">
+            <div class="bubble" :class="m.role">{{ m.text }}</div>
+          </template>
+          <template v-else-if="m.images && m.images.length">
+            <div class="bubble img-bubble" :class="m.role">
+              <div class="img-grid">
+                <img v-for="(src,i) in m.images" :key="i" :src="src" class="img-preview" :alt="`已选择图片 ${i+1}`" />
+              </div>
+            </div>
+          </template>
         </div>
       </div>
     </div>
@@ -83,4 +92,10 @@ defineProps({
   border-color: var(--primary-700);
   box-shadow: none;
 }
+/* 图片预览样式 */
+.img-bubble { padding: 8px; }
+.img-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+.img-preview { width: 100%; max-height: 220px; object-fit: contain; border-radius: 10px; border: 1px solid rgba(0,0,0,0.10); background: #fff; }
+/* 用户图片消息不使用渐变背景，避免影响预览 */
+.img-bubble.user { background: #fff; color: inherit; border-color: var(--primary-700); }
 </style>
